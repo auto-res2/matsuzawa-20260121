@@ -2,6 +2,7 @@ import os
 import math
 import json
 import random
+import copy
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -213,7 +214,7 @@ def _suggest_from_cfg(trial: optuna.Trial, search_spaces: List[Dict[str, Any]]) 
 
 
 def _run_quick_eval(cfg: DictConfig, hyperparams: Dict[str, Any]) -> float:
-    cfg = OmegaConf.clone(cfg)
+    cfg = copy.deepcopy(cfg)
     OmegaConf.set_struct(cfg, False)
     for k, v in hyperparams.items():
         if k in cfg.training:
@@ -300,7 +301,7 @@ def main(cfg: DictConfig):  # noqa: C901
 
         def objective(trial: optuna.Trial) -> float:
             suggestions = _suggest_from_cfg(trial, cfg.optuna.search_spaces)
-            cfg_trial = OmegaConf.clone(cfg)
+            cfg_trial = copy.deepcopy(cfg)
             return _run_quick_eval(cfg_trial, suggestions)
 
         study = optuna.create_study(direction="minimize")
