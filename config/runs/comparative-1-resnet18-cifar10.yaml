@@ -1,0 +1,45 @@
+run_id: comparative-1-resnet18-cifar10
+method: Baseline Fixed Soft Augmentation
+model:
+  name: resnet18
+  num_parameters: 11000000
+  backbone: ResNet-18
+  pretrained: false
+dataset:
+  name: cifar10
+  image_size: 32
+  channels: 3
+  train_split: 45000
+  val_split: 5000
+  test_split: 10000
+  preprocessing:
+    augmentation: randaugment
+    normalize: true
+training:
+  learning_rate: 0.1
+  batch_size: 128
+  epochs: 100
+  optimizer: sgd
+  momentum: 0.9
+  warmup_steps: 500
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  scheduler: linear
+  seed: 42
+  additional_params:
+    constant_consistency_weight: 1.0
+    temperature: 1.0
+    soft_target_params:
+      pmin: 0.5
+      k: 2
+optuna:
+  n_trials: 20
+  search_spaces:
+    - param_name: learning_rate
+      distribution_type: loguniform
+      low: 0.0001
+      high: 0.1
+    - param_name: weight_decay
+      distribution_type: loguniform
+      low: 1e-05
+      high: 0.01

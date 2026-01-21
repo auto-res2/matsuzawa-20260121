@@ -1,0 +1,15 @@
+defaults:
+  - _self_
+
+run: null  # supplied via CLI
+results_dir: ./results
+mode: full  # trial or full
+
+wandb:
+  entity: gengaru617-personal
+  project: 2026-01-21
+  mode: online
+
+optuna:
+  n_trials: 0
+  search_spaces: []
