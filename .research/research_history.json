@@ -576,5 +576,111 @@
     "experimental_code": "import torch\nimport torch.nn as nn\nimport torch.nn.functional as F\n\nclass DynamicSoftAugmentationLoss(nn.Module):\n    def __init__(self, base_loss=nn.CrossEntropyLoss()):\n        super(DynamicSoftAugmentationLoss, self).__init__()\n        self.base_loss = base_loss\n        # Auxiliary network takes a one-dimensional transformation severity and extracts a modulation vector\n        self.modulator = nn.Sequential(\n            nn.Linear(1, 16),\n            nn.ReLU(),\n            nn.Linear(16, 2)  # outputs: [dynamic_weight, temperature_offset]\n        )\n        # Feature alignment layer to help incorporate intermediate feature consistency\n        self.feature_projector = nn.Linear(128, 64)  # Assuming intermediate features of dimension 128\n\n    def forward(self, logits, targets, logits_aug, visibility, features, features_aug, base_temperature=1.0):\n        # Compute soft targets using a power function based on transformation severity\n        pmin = 0.5\n        k = 2\n        soft_targets = pmin + (1 - pmin) * visibility.pow(k)\n        one_hot = F.one_hot(targets, num_classes=logits.size(1)).float()\n        soft_labels = one_hot * soft_targets.unsqueeze(1) + (1 - one_hot) * (1 - soft_targets).unsqueeze(1)\n        soft_labels = soft_labels / soft_labels.sum(dim=1, keepdim=True)\n        loss_ce = -torch.sum(soft_labels * F.log_softmax(logits, dim=1), dim=1).mean()\n\n        # Obtain dynamic scaling parameters from average visibility\n        avg_vis = torch.mean(visibility).unsqueeze(0).unsqueeze(0)  # shape [1,1]\n        mod_out = self.modulator(avg_vis)  # shape [1,2]\n        dynamic_weight = torch.sigmoid(mod_out[0,0])  # in (0,1)\n        temperature = base_temperature + F.softplus(mod_out[0,1])  \n\n        # Temperature scaling for predictions\n        scaled_logits = logits / temperature\n        scaled_logits_aug = logits_aug / temperature\n        loss_output_consistency = F.kl_div(F.log_softmax(scaled_logits, dim=1), F.softmax(scaled_logits_aug, dim=1), reduction='batchmean')\n\n        # Feature-level consistency: project features and compute L2 loss\n        proj_features = self.feature_projector(features)\n        proj_features_aug = self.feature_projector(features_aug)\n        loss_feature_consistency = F.mse_loss(proj_features, proj_features_aug)\n\n        total_loss = loss_ce + dynamic_weight * (loss_output_consistency + 0.5 * loss_feature_consistency)\n        return total_loss\n\n# Example usage:\nif __name__ == '__main__':\n    batch_size, num_classes = 8, 10\n    logits = torch.randn(batch_size, num_classes)\n    logits_aug = torch.randn(batch_size, num_classes)\n    targets = torch.randint(0, num_classes, (batch_size,))\n    # Simulated visibility scores representing augmentation severity\n    visibility = torch.rand(batch_size)\n    # Simulated intermediate features from a backbone network (e.g., from a layer of ResNet)\n    features = torch.randn(batch_size, 128)\n    features_aug = torch.randn(batch_size, 128)\n\n    criterion = DynamicSoftAugmentationLoss()\n    loss = criterion(logits, targets, logits_aug, visibility, features, features_aug)\n    print('Total Loss:', loss.item())",
     "expected_result": "We anticipate that the proposed dynamic augmentation framework will lead to an improvement in classification accuracy by approximately 1-3% over the baseline Soft Augmentation on CIFAR-10 and CIFAR-100. In addition, we expect a reduction in the Expected Calibration Error (ECE) and a lower prediction variance under aggressive transformation regimes. Ablation studies should confirm the positive contributions of both the dynamic modulation and the feature-level consistency terms.",
     "expected_conclusion": "The refined hypothesis demonstrates academic novelty and practical significance by introducing a dual-consistency mechanism—both at output and feature levels—paired with an adaptive modulation network to dynamically calibrate augmentation effects. This method addresses key limitations in fixed soft augmentation approaches by automating complex hyperparameter tuning and ensuring robust, transformation-invariant representations. It is expected to enhance model accuracy and calibration, offering a valuable advancement for data-efficient image classification tasks."
+  },
+  "experimental_design": {
+    "experiment_summary": "This experiment aims to demonstrate the superiority of a dual-branch dynamic soft augmentation framework for image classification. The model (ResNet-18) is trained on CIFAR-10 using our proposed dynamic soft augmentation method, which integrates an auxiliary modulation network to dynamically adjust consistency weights and temperature scaling factors based on the transformation severity (visibility) and intermediate semantic features. In parallel, the method enforces consistency at both the output prediction level (via KL divergence) and the intermediate feature level (via L2 loss). The experiment is designed to run within the available Runner resources (self-hosted, gpu-runner with NVIDIA A100/H200, 80GB+ VRAM, 2048GB+ RAM) by using a moderate training schedule (e.g., 100 epochs, typical batch sizes) and is scaled for efficiency while maintaining reliable statistical significance for metrics such as accuracy (primary), Expected Calibration Error (ECE), and prediction variance under aggressive transformations.",
+    "runner_config": {
+      "runner_label": [
+        "self-hosted",
+        "gpu-runner"
+      ],
+      "description": "NVIDIA A100 or H200, VRAM: 80 GB or more, RAM: 2048 GB or more"
+    },
+    "evaluation_metrics": [
+      {
+        "name": "accuracy",
+        "description": "Measures the proportion of correctly classified images. Correct predictions are determined by matching the predicted label with the ground truth. Calculation: (Number of correct predictions / Total predictions). Suitable for classification tasks. Visualization: Bar charts or line plots (e.g., learning curves) can illustrate changes over epochs."
+      },
+      {
+        "name": "Expected Calibration Error (ECE)",
+        "description": "ECE quantifies the calibration of the model's predicted probabilities. It is computed by grouping predictions into bins, comparing the average confidence with the accuracy in each bin, and averaging the weighted differences. It is particularly important to assess model reliability under varying augmentation conditions. Visualization: Reliability diagrams."
+      },
+      {
+        "name": "Prediction Variance",
+        "description": "Measures the variability of predictions under aggressive augmentations. Lower variance indicates more robust and invariant predictions. This metric is computed as the variance of prediction probabilities across multiple augmentation instances of the same image. Visualization: Error distribution histograms."
+      }
+    ],
+    "models_to_use": [
+      "ResNet-18 (approximately 11M parameters)"
+    ],
+    "datasets_to_use": [
+      "CIFAR-10"
+    ],
+    "proposed_method": {
+      "method_name": "Dynamic Soft Augmentation with Dual Consistency",
+      "description": "A dual-branch framework that employs a lightweight auxiliary network to dynamically modulate augmentation parameters (temperature scaling and consistency weight) based on transformation severity and semantic features, combined with enforcing both output and feature-level consistency.",
+      "training_config": {
+        "learning_rate": 0.1,
+        "batch_size": 128,
+        "epochs": 100,
+        "optimizer": "SGD",
+        "warmup_steps": 500,
+        "weight_decay": 0.0001,
+        "gradient_clip": 1.0,
+        "scheduler": "linear",
+        "seed": 42,
+        "additional_params": "{\"modulation_network_layers\": [16, 2], \"feature_projector_output_dim\": 64, \"soft_target_params\": {\"pmin\": 0.5, \"k\": 2}}"
+      },
+      "optuna_config": {
+        "enabled": true,
+        "n_trials": 20,
+        "search_spaces": [
+          {
+            "param_name": "learning_rate",
+            "distribution_type": "loguniform",
+            "low": 0.0001,
+            "high": 0.1
+          },
+          {
+            "param_name": "weight_decay",
+            "distribution_type": "loguniform",
+            "low": 1e-05,
+            "high": 0.01
+          },
+          {
+            "param_name": "dynamic_weight_scale",
+            "distribution_type": "uniform",
+            "low": 0.5,
+            "high": 2.0
+          }
+        ]
+      }
+    },
+    "comparative_methods": [
+      {
+        "method_name": "Baseline Fixed Soft Augmentation",
+        "description": "A standard soft augmentation technique with fixed softening curves and constant consistency weights, enforcing output-level consistency via KL divergence but without feature-level alignment and dynamic modulation. It serves as the baseline for comparison against the proposed dynamic approach.",
+        "training_config": {
+          "learning_rate": 0.1,
+          "batch_size": 128,
+          "epochs": 100,
+          "optimizer": "SGD",
+          "warmup_steps": 500,
+          "weight_decay": 0.0001,
+          "gradient_clip": 1.0,
+          "scheduler": "linear",
+          "seed": 42,
+          "additional_params": "{\"constant_consistency_weight\": 1.0, \"temperature\": 1.0, \"soft_target_params\": {\"pmin\": 0.5, \"k\": 2}}"
+        },
+        "optuna_config": {
+          "enabled": true,
+          "n_trials": 20,
+          "search_spaces": [
+            {
+              "param_name": "learning_rate",
+              "distribution_type": "loguniform",
+              "low": 0.0001,
+              "high": 0.1
+            },
+            {
+              "param_name": "weight_decay",
+              "distribution_type": "loguniform",
+              "low": 1e-05,
+              "high": 0.01
+            }
+          ]
+        }
+      }
+    ]
   }
 }
