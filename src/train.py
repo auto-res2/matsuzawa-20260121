@@ -213,7 +213,7 @@ def _suggest_from_cfg(trial: optuna.Trial, search_spaces: List[Dict[str, Any]]) 
 
 
 def _run_quick_eval(cfg: DictConfig, hyperparams: Dict[str, Any]) -> float:
-    cfg = OmegaConf.clone(cfg)
+    cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
     OmegaConf.set_struct(cfg, False)
     for k, v in hyperparams.items():
         if k in cfg.training:
@@ -300,7 +300,7 @@ def main(cfg: DictConfig):  # noqa: C901
 
         def objective(trial: optuna.Trial) -> float:
             suggestions = _suggest_from_cfg(trial, cfg.optuna.search_spaces)
-            cfg_trial = OmegaConf.clone(cfg)
+            cfg_trial = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
             return _run_quick_eval(cfg_trial, suggestions)
 
         study = optuna.create_study(direction="minimize")

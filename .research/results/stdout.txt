@@ -10,3 +10,17 @@
 [main] Launching: python -u -m src.train run=proposed-resnet18-cifar10 results_dir=/workspace/actions-runner/_work/matsuzawa-20260121/matsuzawa-20260121/.research/results mode=trial
 === [TRIAL RUN] PASSED for proposed-resnet18-cifar10 at Wed Jan 21 07:21:27 UTC 2026 ===
 
+=== [UV SYNC] Start at Wed Jan 21 07:22:56 UTC 2026 ===
+=== [UV SYNC] Finished successfully at Wed Jan 21 07:22:57 UTC 2026 ===
+=== [FULL EXPERIMENT] Start for proposed-resnet18-cifar10 at Wed Jan 21 07:22:57 UTC 2026 ===
+[main] Launching: python -u -m src.train run=proposed-resnet18-cifar10 results_dir=/workspace/actions-runner/_work/matsuzawa-20260121/matsuzawa-20260121/.research/results mode=full
+[W 2026-01-21 07:23:07,450] Trial 0 failed with parameters: {'learning_rate': 0.0014741157779629096, 'weight_decay': 0.0043996998152356324, 'dynamic_weight_scale': 0.7563177525814992} because of the following error: AttributeError("type object 'OmegaConf' has no attribute 'clone'").
+Traceback (most recent call last):
+  File "/workspace/actions-runner/_work/matsuzawa-20260121/matsuzawa-20260121/.venv/lib/python3.11/site-packages/optuna/study/_optimize.py", line 206, in _run_trial
+    value_or_values = func(trial)
+                      ^^^^^^^^^^^
+  File "/workspace/actions-runner/_work/matsuzawa-20260121/matsuzawa-20260121/src/train.py", line 303, in objective
+    cfg_trial = OmegaConf.clone(cfg)
+                ^^^^^^^^^^^^^^^
+AttributeError: type object 'OmegaConf' has no attribute 'clone'
+[W 2026-01-21 07:23:07,450] Trial 0 failed with value None.
