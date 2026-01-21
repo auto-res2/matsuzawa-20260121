@@ -275,8 +275,8 @@ def main(cfg: DictConfig):  # noqa: C901
         raise FileNotFoundError(f"Run-specific YAML not found: {run_yaml}")
 
     run_cfg = OmegaConf.load(run_yaml)
-    cfg = OmegaConf.merge(cfg, run_cfg)
     OmegaConf.set_struct(cfg, False)
+    cfg = OmegaConf.merge(cfg, run_cfg)
 
     if cfg.mode not in {"trial", "full"}:
         raise ValueError("mode must be 'trial' or 'full'")
